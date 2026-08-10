@@ -13,6 +13,39 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 st.set_page_config(page_title="Voedingsplanner", layout="wide")
 
+import requests
+
+#hulpfunctie : API call naar openfoodfacts 
+
+def search_off(term, page_size=20):
+    url = "https://world.openfoodfacts.org/cgi/search.pl"
+    params = {
+        "search_terms": term,
+        "search_simple": 1,
+        "action": "process",
+        "json": 1,
+        "page_size": page_size,
+        "fields": "code,product_name,brands,nutriments,image_small_url",
+    }
+    r = requests.get(url, params=params, timeout=10,
+                     headers={"User-Agent": "MealBuilder/0.1 (jouw@email)"})
+    r.raise_for_status()
+    return r.json().get("products", [])
+
+# API input omzetten naar format 
+def parse_item(p):
+    n = p.get("nutriments", {})
+    return {
+        "code": p.get("code"),
+        "name": p.get("product_name") or "(naamloos)",
+        "brand": p.get("brands", ""),
+        "kcal_100g": n.get("energy-kcal_100g"),
+        "protein_100g": n.get("proteins_100g"),
+        "carbs_100g": n.get("carbohydrates_100g"),
+        "fat_100g": n.get("fat_100g"),
+    }
+
+
 def haal_voedingsmiddelen():
     con = sqlite3.connect("voeding.db")
     con.row_factory = sqlite3.Row
@@ -65,7 +98,7 @@ def waarden(b):
 
 links, rechts = st.columns([1, 2])
 
-#
+
 #print report in pdf 
 def maak_pdf(plan):
     buffer = BytesIO()
@@ -135,6 +168,7 @@ def maak_pdf(plan):
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         elems.append(tabel)
+
 
     # Dagtotaal
     elems.append(Spacer(1, 10*mm))
